@@ -121,3 +121,7 @@ Para investigar fallas, ejecuta `docker compose logs --tail 100 backend floci`, 
 ### Persistencia comprobada
 
 El laboratorio configura `FLOCI_STORAGE_MODE=persistent` y guarda el estado de Floci en el volumen de Compose montado en `/app/data`. PostgreSQL utiliza un volumen creado por Floci para su instancia RDS. Se comprobó creando un registro en cada almacén, reiniciando Floci y el backend y consultando ambos registros. No elimines volúmenes si necesitas conservar la práctica. La etiqueta `latest` puede cambiar; esta demostración se verificó con Floci 2.1.0 y conviene revisar la compatibilidad si se actualiza.
+
+### Modo de desarrollo con recarga automática
+
+Con Docker Desktop activo, ejecuta `docker compose up -d floci backend`. Instala Node.js 22 y, desde la raíz del proyecto, ejecuta `npm install` y `npm run dev -w frontend`. Abre http://localhost:5173. Vite recarga los cambios del frontend y su proxy envía `/api` al backend del puerto 3000. Para detener Vite usa Ctrl+C; los contenedores se detienen con `docker compose down`. El frontend de Compose en http://localhost:8080 es una compilación servida por Nginx y no tiene recarga automática.
