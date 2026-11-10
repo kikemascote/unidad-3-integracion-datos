@@ -1,0 +1,1 @@
+{"name":"unidad-3-integracion","private":true,"workspaces":["backend","frontend"],"scripts":{"build":"npm run build -w backend && npm run build -w frontend"}}

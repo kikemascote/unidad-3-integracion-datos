@@ -1,0 +1,36 @@
+services:
+  floci:
+    image: floci/floci:latest
+    ports:
+      - "127.0.0.1:4566:4566"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - floci-data:/app/data
+    environment:
+      FLOCI_SERVICES_DOCKER_NETWORK: unidad3_red
+      FLOCI_STORAGE_MODE: persistent
+      FLOCI_STORAGE_PERSISTENT_PATH: /app/data
+  backend:
+    build: ./backend
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+    depends_on:
+      - floci
+    networks: [default]
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - backend
+networks:
+  default:
+    name: unidad3_red
+volumes:
+  floci-data:
+

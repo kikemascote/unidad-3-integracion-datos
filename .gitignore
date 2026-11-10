@@ -1,0 +1,6 @@
+# Solo se publica el proyecto de esta práctica, no los materiales ajenos.
+node_modules/
+dist/
+.env
+*.docx
+*.pdf
