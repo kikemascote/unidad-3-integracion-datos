@@ -1,0 +1,42 @@
+# Laboratorio aislado: no modifica los datos del compose básico.
+services:
+  floci:
+    image: floci/floci:latest
+    ports: ["127.0.0.1:4567:4566"]
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock", "aws-state:/app/data"]
+    environment:
+      FLOCI_SERVICES_DOCKER_NETWORK: unidad3_aws
+      FLOCI_STORAGE_MODE: persistent
+      FLOCI_STORAGE_PERSISTENT_PATH: /app/data
+      FLOCI_SERVICES_IAM_ENFORCEMENT_ENABLED: "true"
+      FLOCI_SERVICES_IAM_SEED_DEPLOYER_PRINCIPAL: "true"
+      FLOCI_AUTH_VALIDATE_SIGNATURES: "true"
+  provision:
+    build: ./backend
+    command: ["node", "infra/provision.cjs"]
+    environment:
+      AWS_ENDPOINT_URL: http://floci:4566
+    volumes: ["runtime-identity:/identity"]
+    depends_on: [floci]
+  backend:
+    build: ./backend
+    environment:
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_REGION: us-east-1
+      RUNTIME_IDENTITY_FILE: /identity/runtime.json
+      DB_SECRET_ID: tienda/database
+    volumes: ["runtime-identity:/identity:ro"]
+    ports: ["127.0.0.1:3001:3000"]
+    depends_on:
+      provision:
+        condition: service_completed_successfully
+  frontend:
+    build: ./frontend
+    ports: ["127.0.0.1:8082:80"]
+    depends_on: [backend]
+networks:
+  default:
+    name: unidad3_aws
+volumes:
+  aws-state:
+  runtime-identity:

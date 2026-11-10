@@ -131,3 +131,26 @@ Con Docker Desktop activo, ejecuta `docker compose up -d floci backend`. Instala
 RDS conserva cinco productos con SKU, precio y existencias. DynamoDB conserva cinco opiniones distintas con atributos opcionales (foto, plataforma, etiquetas, compra verificada). Edita los atributos JSON de un registro y guarda: en inventario se exigen `sku`, `price` y `stock`; en opiniones puedes agregar campos propios. Los atributos NoSQL se almacenan también como mapa nativo `attributes`.
 
 La inicialización incorpora ejemplos con identificadores estables y no sobrescribe las ediciones existentes. Si se elimina una semilla, reaparece en el siguiente arranque. Esta versión introductoria mantiene el producto serializado en `detail` y valida su estructura en NestJS; no demuestra todavía columnas numéricas, relaciones, transacciones ni restricciones relacionales de inventario. Para discutir el siguiente paso, propone separar productos, pedidos y sus partidas en tablas y usar una transacción al descontar existencias. DynamoDB también puede guardar inventario y SQL también puede guardar reseñas: la elección depende de patrones de acceso y requisitos, no del nombre de la entidad.
+
+## Laboratorio con controles de acceso de AWS
+
+Para demostrar IAM y separación de responsabilidades usa el entorno aislado:
+
+```powershell
+docker compose -p unidad3-aws -f compose.aws.yaml up --build -d
+docker compose -p unidad3-aws -f compose.aws.yaml logs -f provision backend
+```
+
+Abre http://localhost:8082. El endpoint emulado está en 4567 y la API en 3001. Tiene sus propios volúmenes y red. Para apagarlo: `docker compose -p unidad3-aws -f compose.aws.yaml down`.
+
+El contenedor `provision` usa el administrador local preconfigurado de Floci para crear una identidad de carga de trabajo, una política que solo permite asumir el rol `tienda-runtime`, su política de confianza, un secreto con contraseña aleatoria, la instancia RDS y la tabla DynamoDB. La aplicación lee la identidad inicial desde un volumen de solo lectura y solicita sesiones temporales de 15 minutos a STS. El rol permite operaciones sobre la tabla concreta, consulta de metadatos RDS y lectura del secreto concreto; no concede creación o eliminación de infraestructura. El SDK firma solicitudes SigV4 y Floci evalúa las políticas. Los secretos y claves generados no se imprimen ni se incluyen en Git.
+
+Para proyectar: abre `backend/infra/provision.cjs`, identifica Principal, Action y Resource; después sigue el proveedor de credenciales STS en `service.ts`, la lectura de Secrets Manager y la conexión `pg`. IAM autoriza la API de AWS; el usuario y contraseña de PostgreSQL autentican la conexión SQL. Esta versión usa el usuario administrador SQL de la práctica para crear la tabla; un despliegue productivo debe separar migraciones y usuario SQL con privilegios de datos.
+
+Alcance: esto emula IAM, STS, Secrets Manager, RDS y DynamoDB del caso de estudio. No equivale a configurar AWS completo. La red Docker no es una VPC ni implementa por sí misma subredes, grupos de seguridad o NACL. El laboratorio usa HTTP local y conexión SQL local sin TLS; no demuestra cifrado de transporte, KMS, disponibilidad multizona, backups administrados, CloudTrail, autenticación de usuarios finales ni Cognito. Las claves iniciales de la carga de trabajo se guardan en volumen para el arranque local; en AWS usarías un rol de tarea ECS, instancia EC2 o identidad de servicio con credenciales proporcionadas por la plataforma. El administrador `floci/floci` es exclusivo del emulador. Las políticas y la fidelidad del emulador deben validarse con pruebas de permiso concedido y denegado antes de extraer conclusiones sobre AWS real.
+
+Referencia: [IAM y configuración de Floci](https://floci.io/floci/configuration/environment-variables/), [STS de Floci](https://floci.io/floci/services/sts/).
+
+Compatibilidad verificada con la imagen instalada: el permiso de la identidad inicial `sts:AssumeRole` utiliza `Resource: "*"` porque la autorización previa de esta versión de Floci rechazó el ARN específico. La confianza del rol sigue restringida al usuario de la aplicación. En AWS debe limitarse ese permiso al ARN del rol; esta ampliación local es una diferencia explícita, no una política recomendada para producción.
+
+Prueba reproducible de autorización: `docker compose -p unidad3-aws -f compose.aws.yaml exec -T backend node infra/verify.cjs`. Debe confirmar lectura permitida de la tabla y listado global denegado. Esta prueba no elimina datos.
