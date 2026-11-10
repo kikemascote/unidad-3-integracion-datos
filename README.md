@@ -125,3 +125,9 @@ El laboratorio configura `FLOCI_STORAGE_MODE=persistent` y guarda el estado de F
 ### Modo de desarrollo con recarga automática
 
 Con Docker Desktop activo, ejecuta `docker compose up -d floci backend`. Instala Node.js 22 y, desde la raíz del proyecto, ejecuta `npm install` y `npm run dev -w frontend`. Abre http://localhost:5173. Vite recarga los cambios del frontend y su proxy envía `/api` al backend del puerto 3000. Para detener Vite usa Ctrl+C; los contenedores se detienen con `docker compose down`. El frontend de Compose en http://localhost:8080 es una compilación servida por Nginx y no tiene recarga automática.
+
+## Caso de negocio Tienda Aula
+
+RDS conserva cinco productos con SKU, precio y existencias. DynamoDB conserva cinco opiniones distintas con atributos opcionales (foto, plataforma, etiquetas, compra verificada). Edita los atributos JSON de un registro y guarda: en inventario se exigen `sku`, `price` y `stock`; en opiniones puedes agregar campos propios. Los atributos NoSQL se almacenan también como mapa nativo `attributes`.
+
+La inicialización incorpora ejemplos con identificadores estables y no sobrescribe las ediciones existentes. Si se elimina una semilla, reaparece en el siguiente arranque. Esta versión introductoria mantiene el producto serializado en `detail` y valida su estructura en NestJS; no demuestra todavía columnas numéricas, relaciones, transacciones ni restricciones relacionales de inventario. Para discutir el siguiente paso, propone separar productos, pedidos y sus partidas en tablas y usar una transacción al descontar existencias. DynamoDB también puede guardar inventario y SQL también puede guardar reseñas: la elección depende de patrones de acceso y requisitos, no del nombre de la entidad.

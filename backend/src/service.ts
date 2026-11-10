@@ -19,6 +19,7 @@ export class DataService implements OnModuleInit, OnModuleDestroy {
   private async initialize() {
     // Cada almacÃ©n se prepara de forma independiente: uno puede funcionar aunque falle el otro.
     await Promise.all([this.prepareSql(), this.prepareNoSql()]);
+    await this.seed();
   }
   private async retry(label: string, action: () => Promise<void>) {
     for (let n = 1; n <= 30; n++) {
@@ -52,6 +53,40 @@ export class DataService implements OnModuleInit, OnModuleDestroy {
       }
     });
   }
+  // Semillas con identificadores estables: no se sobrescriben las ediciones del alumno.
+  private async seed() {
+    const products = [
+      ['Laptop Aula', {sku:'TEC-001',price:12500,stock:8}],
+      ['Mouse inalámbrico', {sku:'TEC-002',price:350,stock:40}],
+      ['Monitor 24 pulgadas', {sku:'TEC-003',price:3200,stock:12}],
+      ['Teclado mecánico', {sku:'TEC-004',price:950,stock:20}],
+      ['Cámara web', {sku:'TEC-005',price:780,stock:15}]
+    ] as const;
+    const reviews = [
+      ['Ana · Laptop Aula', {product:'TEC-001',stars:5,comment:'Ideal para programar',verified:true}],
+      ['Luis · Mouse inalámbrico', {product:'TEC-002',stars:4,comment:'Muy cómodo',batteryMonths:6}],
+      ['Marta · Monitor', {product:'TEC-003',stars:5,comment:'Buen color',photo:'escritorio.jpg'}],
+      ['José · Teclado', {product:'TEC-004',stars:3,comment:'Algo ruidoso',switchType:'blue'}],
+      ['Sofía · Cámara web', {product:'TEC-005',stars:4,comment:'Funciona en clase',platform:'Linux',tags:['clases','video']}]
+    ] as const;
+    for (const store of ['sql','nosql']) {
+      if (this.state[store] !== 'Conectado') continue;
+      const values = store === 'sql' ? products : reviews;
+      for (let i=0;i<values.length;i++) {
+        const id = `00000000-0000-4000-8000-00000000000${i+1}`;
+        const item = {id,title:values[i][0],detail:JSON.stringify(values[i][1])};
+        if (store === 'sql') await this.pool!.query('INSERT INTO records (id,title,detail) VALUES ($1,$2,$3) ON CONFLICT (id) DO NOTHING',[id,item.title,item.detail]);
+        else try { await this.docs.send(new PutCommand({TableName:'unidad3-records',Item:{...item,attributes:values[i][1]},ConditionExpression:'attribute_not_exists(id)'})); } catch(e) { if ((e as Error).name !== 'ConditionalCheckFailedException') throw e; }
+      }
+    }
+  }
+  private attributes(store: string, dto: RecordData) {
+    let data: any;
+    try { data=JSON.parse(dto.detail); } catch { throw new BadRequestException('El detalle debe ser un objeto JSON válido'); }
+    if (!data || Array.isArray(data) || typeof data !== 'object') throw new BadRequestException('Se requiere un objeto JSON');
+    if (store === 'sql' && (Object.keys(data).sort().join(',') !== 'price,sku,stock' || typeof data.sku !== 'string' || !data.sku || !Number.isFinite(data.price) || data.price < 0 || !Number.isInteger(data.stock) || data.stock < 0)) throw new BadRequestException('Producto: sku de texto, price numérico positivo y stock entero no negativo');
+    return data;
+  }
   status() { return this.state; }
   private check(store: string) {
     if (!['sql', 'nosql'].includes(store)) throw new BadRequestException('AlmacÃ©n invÃ¡lido');
@@ -66,15 +101,15 @@ export class DataService implements OnModuleInit, OnModuleDestroy {
     return items;
   }
   async create(store: string, dto: RecordData) {
-    this.check(store); const item = { id: randomUUID(), ...dto };
+    this.check(store); const attributes=this.attributes(store,dto); const item = { id: randomUUID(), ...dto };
     if (store === 'sql') await this.pool!.query('INSERT INTO records (id, title, detail) VALUES ($1, $2, $3)', [item.id, item.title, item.detail]);
-    else await this.docs.send(new PutCommand({ TableName: 'unidad3-records', Item: item }));
+    else await this.docs.send(new PutCommand({ TableName: 'unidad3-records', Item: {...item, attributes} }));
     return item;
   }
   async update(store: string, id: string, dto: RecordData) {
-    this.check(store);
+    this.check(store); const attributes=this.attributes(store,dto);
     if (store === 'sql') { const result = await this.pool!.query('UPDATE records SET title=$1, detail=$2 WHERE id::text=$3 RETURNING *', [dto.title, dto.detail, id]); if (!result.rowCount) throw new NotFoundException(); return result.rows[0]; }
-    try { await this.docs.send(new UpdateCommand({ TableName: 'unidad3-records', Key: { id }, UpdateExpression: 'SET title = :title, detail = :detail', ConditionExpression: 'attribute_exists(id)', ExpressionAttributeValues: { ':title': dto.title, ':detail': dto.detail } })); }
+    try { await this.docs.send(new UpdateCommand({ TableName: 'unidad3-records', Key: { id }, UpdateExpression: 'SET title = :title, detail = :detail, attributes = :attributes', ConditionExpression: 'attribute_exists(id)', ExpressionAttributeValues: { ':title': dto.title, ':detail': dto.detail, ':attributes': attributes } })); }
     catch (e) { if ((e as Error).name === 'ConditionalCheckFailedException') throw new NotFoundException(); throw e; }
     return { id, ...dto };
   }
