@@ -28,9 +28,9 @@ NestJS (lógica, validación, API REST)
 
 RDS es un servicio de bases de datos **relacionales**; aquí ejecuta PostgreSQL. DynamoDB es otro servicio de AWS, **NoSQL**, basado en elementos y claves. Floci emula el plano de control de RDS y crea un contenedor PostgreSQL real; DynamoDB se emula dentro de Floci. RDS y DynamoDB no son dos motores del mismo servicio. No hay sincronización automática entre ambos: al cambiar de pestaña se consulta otro almacén independiente.
 
-## Recorrido para el docente
+## Recorrido
 
-1. Proyecta el esquema anterior. Pregunta: ¿por qué el navegador no se conecta directamente a la base? Señala que NestJS centraliza validación, reglas y acceso a datos.
+1. Pregunta: ¿por qué el navegador no se conecta directamente a la base? Señala que NestJS centraliza validación, reglas y acceso a datos.
 2. Abre `compose.yaml`. Identifica Floci, backend, frontend, red y socket. Explica que el socket permite crear el motor RDS y que el nombre `floci` se resuelve dentro de la red de Compose.
 3. En `backend/src/service.ts`, muestra `config`, `RDSClient`, `DynamoDBClient` y `DynamoDBDocumentClient`: endpoint local, región y credenciales ficticias. Los SDK envían solicitudes al emulador, no a AWS.
 4. En `prepareSql`, explica `DescribeDBInstances`, `CreateDBInstance`, endpoint, `Pool` y `CREATE TABLE`. RDS administra la instancia; el driver `pg` habla con PostgreSQL usando el endpoint devuelto. Los reintentos esperan a que el motor acepte conexiones. RDS reportar disponible no garantiza por sí solo que PostgreSQL responda.
